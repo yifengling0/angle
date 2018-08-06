@@ -69,7 +69,6 @@ SwapChain11::SwapChain11(Renderer11 *renderer,
       mFirstSwap(true),
       mSwapChain(nullptr),
       mSwapChain1(nullptr),
-      mFrameLatencyWaitableObject(nullptr),
       mKeyedMutex(nullptr),
       mBackBufferTexture(),
       mBackBufferRTView(),
@@ -111,12 +110,6 @@ SwapChain11::~SwapChain11()
 
 void SwapChain11::release()
 {
-    if (mFrameLatencyWaitableObject != nullptr)
-    {
-        CloseHandle(mFrameLatencyWaitableObject);
-        mFrameLatencyWaitableObject = nullptr;
-    }
-
     // TODO(jmadill): Should probably signal that the RenderTarget is dirty.
     SafeRelease(mSwapChain1);
     SafeRelease(mSwapChain);
@@ -487,17 +480,7 @@ EGLint SwapChain11::resize(const gl::Context *context,
         return EGL_BAD_ALLOC;
     }
 
-    UINT flags = 0;
-    if (mFrameLatencyWaitableObject != nullptr)
-    {
-        // Workaround a bug in the D3D runtime that can cause 2 second hangs while resizing the window.
-        // In certain cases, D3D may not properly handle ResizeBuffers() if the previous Present() hasn't completed.
-        // The workaround is to always wait for the previous Present() to complete before calling ResizeBuffers().
-        (void)WaitForSingleObject(mFrameLatencyWaitableObject, 1000);
-        flags = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
-    }
-
-    result = mSwapChain->ResizeBuffers(desc.BufferCount, backbufferWidth, backbufferHeight, getSwapChainNativeFormat(), flags);
+    result = mSwapChain->ResizeBuffers(desc.BufferCount, backbufferWidth, backbufferHeight, getSwapChainNativeFormat(), 0);
 
     if (FAILED(result))
     {
@@ -595,12 +578,6 @@ EGLint SwapChain11::reset(const gl::Context *context,
         return EGL_BAD_ACCESS;
     }
 
-    if (mFrameLatencyWaitableObject != nullptr)
-    {
-        CloseHandle(mFrameLatencyWaitableObject);
-        mFrameLatencyWaitableObject = nullptr;
-    }
-
     // Release specific resources to free up memory for the new render target, while the
     // old render target still exists for the purpose of preserving its contents.
     SafeRelease(mSwapChain1);
@@ -640,15 +617,6 @@ EGLint SwapChain11::reset(const gl::Context *context,
         if (mRenderer->getRenderer11DeviceCaps().supportsDXGI1_2)
         {
             mSwapChain1 = d3d11::DynamicCastComObject<IDXGISwapChain1>(mSwapChain);
-
-            IDXGISwapChain2 *swapChain2 = d3d11::DynamicCastComObject<IDXGISwapChain2>(mSwapChain);
-            if (swapChain2 != nullptr)
-            {
-                // GetFrameLatencyWaitableObject() returns NULL if the swapchain was not created 
-                // with DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT.
-                mFrameLatencyWaitableObject = swapChain2->GetFrameLatencyWaitableObject();
-                SafeRelease(swapChain2);
-            }
         }
 
         ID3D11Texture2D *backbufferTex = nullptr;
