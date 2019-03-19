@@ -28,8 +28,7 @@ class TextureLoadingDDSSample : public SampleApplication
 
     virtual bool initialize()
     {
-        const std::string vs = SHADER_SOURCE
-        (
+        const std::string vs = R"(
             attribute vec4 a_position;
             attribute vec2 a_texCoord;
             varying vec2 v_texCoord;
@@ -37,19 +36,16 @@ class TextureLoadingDDSSample : public SampleApplication
             {
                 gl_Position = a_position;
                 v_texCoord = a_texCoord;
-            }
-        );
+            })";
 
-        const std::string fs = SHADER_SOURCE
-        (
+        const std::string fs = R"(
             precision mediump float;
             varying vec2 v_texCoord;
             uniform sampler2D s_texture;
             void main()
             {
                 gl_FragColor = texture2D(s_texture, v_texCoord);
-            }
-        );
+            })";
 
         mProgram = CompileProgram(vs, fs);
         if (!mProgram)
